@@ -22,6 +22,14 @@ function handleNewsletter(e) {
 }
 
 // ============================================
+// DEVICE DETECTION
+// ============================================
+
+const isMobile = () => window.innerWidth <= 768;
+const isTablet = () => window.innerWidth > 768 && window.innerWidth <= 1024;
+const isDesktop = () => window.innerWidth > 1024;
+
+// ============================================
 // CUSTOM CURSOR
 // ============================================
 
@@ -45,7 +53,12 @@ function animateCursor() {
     
     requestAnimationFrame(animateCursor);
 }
-animateCursor();
+
+// Only animate cursor on desktop
+if (!isMobile()) {
+    animateCursor();
+    cursor.style.opacity = '1';
+}
 
 // ============================================
 // NAVBAR SCROLL EFFECT
@@ -151,9 +164,13 @@ function initHeroScene() {
     const renderer = new THREE.WebGLRenderer({ 
         canvas, 
         antialias: true, 
-        alpha: true 
+        alpha: true,
+        powerPreference: 'high-performance'
     });
-    renderer.setSize(window.innerWidth, window.innerHeight);
+    
+    const width = window.innerWidth;
+    const height = window.innerHeight - 70; // Account for navbar
+    renderer.setSize(width, height);
     renderer.setPixelRatio(window.devicePixelRatio);
     renderer.setClearColor(0x0a0a0a, 0);
     
@@ -239,7 +256,7 @@ function initHeroScene() {
     // Handle resize
     function onWindowResize() {
         const width = window.innerWidth;
-        const height = window.innerHeight;
+        const height = window.innerHeight - 70;
         
         camera.aspect = width / height;
         camera.updateProjectionMatrix();
@@ -247,6 +264,21 @@ function initHeroScene() {
     }
     
     window.addEventListener('resize', onWindowResize);
+    
+    // Touch support for mobile (parallax effect)
+    let touchX = 0;
+    let touchY = 0;
+    
+    document.addEventListener('touchmove', (e) => {
+        const touch = e.touches[0];
+        touchX = (touch.clientX / window.innerWidth) * 2 - 1;
+        touchY = -(touch.clientY / window.innerHeight) * 2 + 1;
+    }, { passive: true });
+    
+    document.addEventListener('touchstart', () => {
+        mouseX = touchX;
+        mouseY = touchY;
+    }, { passive: true });
     
     return { scene, camera, renderer, torusKnot, particles, animate: () => animationId };
 }
@@ -259,13 +291,27 @@ function initProductScene() {
     const canvas = document.getElementById('product-canvas');
     if (!canvas) return;
     
+    // Adjust canvas size for mobile
+    let canvasSize = 400;
+    if (isMobile()) {
+        canvasSize = Math.min(window.innerWidth - 40, 300);
+    } else if (isTablet()) {
+        canvasSize = 350;
+    }
+    
+    canvas.width = canvasSize;
+    canvas.height = canvasSize;
+    canvas.style.width = canvasSize + 'px';
+    canvas.style.height = canvasSize + 'px';
+    
     const renderer = new THREE.WebGLRenderer({ 
         canvas, 
         antialias: true, 
-        alpha: true 
+        alpha: true,
+        powerPreference: 'high-performance'
     });
-    renderer.setSize(400, 400);
-    renderer.setPixelRatio(window.devicePixelRatio);
+    renderer.setSize(canvasSize, canvasSize);
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
     renderer.setClearColor(0x0a0a0a, 0);
     
     const scene = new THREE.Scene();
@@ -310,30 +356,44 @@ function initProductScene() {
     const box = new THREE.Mesh(geometry, material);
     scene.add(box);
     
-    // Mouse interaction
+    // Mouse & Touch interaction
     let isDragging = false;
     let previousMousePosition = { x: 0, y: 0 };
     
-    canvas.addEventListener('mousedown', (e) => {
+    const handleStart = (e) => {
         isDragging = true;
-        previousMousePosition = { x: e.clientX, y: e.clientY };
-    });
+        const clientX = e.clientX || (e.touches && e.touches[0].clientX);
+        const clientY = e.clientY || (e.touches && e.touches[0].clientY);
+        previousMousePosition = { x: clientX, y: clientY };
+    };
     
-    document.addEventListener('mousemove', (e) => {
-        if (isDragging) {
-            const deltaX = e.clientX - previousMousePosition.x;
-            const deltaY = e.clientY - previousMousePosition.y;
-            
-            box.rotation.y += deltaX * 0.01;
-            box.rotation.x += deltaY * 0.01;
-            
-            previousMousePosition = { x: e.clientX, y: e.clientY };
-        }
-    });
+    const handleMove = (e) => {
+        if (!isDragging) return;
+        
+        const clientX = e.clientX || (e.touches && e.touches[0].clientX);
+        const clientY = e.clientY || (e.touches && e.touches[0].clientY);
+        
+        const deltaX = clientX - previousMousePosition.x;
+        const deltaY = clientY - previousMousePosition.y;
+        
+        box.rotation.y += deltaX * 0.01;
+        box.rotation.x += deltaY * 0.01;
+        
+        previousMousePosition = { x: clientX, y: clientY };
+    };
     
-    document.addEventListener('mouseup', () => {
+    const handleEnd = () => {
         isDragging = false;
-    });
+    };
+    
+    canvas.addEventListener('mousedown', handleStart, false);
+    canvas.addEventListener('touchstart', handleStart, false);
+    
+    document.addEventListener('mousemove', handleMove, false);
+    document.addEventListener('touchmove', handleMove, { passive: true });
+    
+    document.addEventListener('mouseup', handleEnd, false);
+    document.addEventListener('touchend', handleEnd, false);
     
     // Animation loop
     function animate() {
@@ -359,13 +419,23 @@ function initAmbientScene() {
     const canvas = document.getElementById('ambient-canvas');
     if (!canvas) return;
     
+    const width = window.innerWidth;
+    let height = 400;
+    
+    if (isMobile()) {
+        height = 300;
+    } else if (isTablet()) {
+        height = 350;
+    }
+    
     const renderer = new THREE.WebGLRenderer({ 
         canvas, 
         antialias: true, 
-        alpha: true 
+        alpha: true,
+        powerPreference: 'high-performance'
     });
-    renderer.setSize(window.innerWidth, 400);
-    renderer.setPixelRatio(window.devicePixelRatio);
+    renderer.setSize(width, height);
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
     renderer.setClearColor(0x0a0a0a, 0);
     
     const scene = new THREE.Scene();
@@ -446,9 +516,17 @@ function initAmbientScene() {
     // Handle resize
     function onWindowResize() {
         const width = window.innerWidth;
-        camera.aspect = width / 400;
+        let height = 400;
+        
+        if (isMobile()) {
+            height = 300;
+        } else if (isTablet()) {
+            height = 350;
+        }
+        
+        camera.aspect = width / height;
         camera.updateProjectionMatrix();
-        renderer.setSize(width, 400);
+        renderer.setSize(width, height);
     }
     
     window.addEventListener('resize', onWindowResize);
@@ -462,6 +540,14 @@ function initAmbientScene() {
 
 function initCategoryCardTilt() {
     const cards = document.querySelectorAll('.category-card');
+    
+    // Disable 3D tilt on mobile for better performance
+    if (isMobile()) {
+        cards.forEach(card => {
+            card.style.perspective = 'none';
+        });
+        return;
+    }
     
     cards.forEach(card => {
         card.addEventListener('mousemove', (e) => {
@@ -502,6 +588,50 @@ function initSizeSelector() {
 }
 
 // ============================================
+// PRODUCT CARDS - RESPONSIVE 3D EFFECT
+// ============================================
+
+function initProductCards() {
+    const cards = document.querySelectorAll('.product-card');
+    
+    // Disable 3D effects on mobile
+    if (isMobile()) {
+        cards.forEach(card => {
+            card.style.perspective = 'none';
+            card.addEventListener('click', function() {
+                this.style.transform = 'translateY(-5px)';
+                setTimeout(() => {
+                    this.style.transform = '';
+                }, 300);
+            });
+        });
+        return;
+    }
+    
+    // 3D tilt on desktop
+    cards.forEach(card => {
+        card.addEventListener('mousemove', (e) => {
+            const rect = card.getBoundingClientRect();
+            const centerX = rect.left + rect.width / 2;
+            const centerY = rect.top + rect.height / 2;
+            
+            const angleX = (e.clientY - centerY) / (rect.height / 2) * -5;
+            const angleY = (e.clientX - centerX) / (rect.width / 2) * 5;
+            
+            card.style.transform = `
+                rotateX(${angleX}deg)
+                rotateY(${angleY}deg)
+                translateY(-10px)
+            `;
+        });
+        
+        card.addEventListener('mouseleave', () => {
+            card.style.transform = 'rotateX(0) rotateY(0) translateY(0)';
+        });
+    });
+}
+
+// ============================================
 // INITIALIZATION
 // ============================================
 
@@ -513,9 +643,17 @@ document.addEventListener('DOMContentLoaded', () => {
     
     // Initialize interactions
     initCategoryCardTilt();
+    initProductCards();
     initSizeSelector();
     
     // Expose functions to global scope for onclick handlers
     window.scrollTo = scrollTo;
     window.handleNewsletter = handleNewsletter;
+});
+
+// Handle device orientation changes
+window.addEventListener('orientationchange', () => {
+    setTimeout(() => {
+        location.reload();
+    }, 100);
 });
